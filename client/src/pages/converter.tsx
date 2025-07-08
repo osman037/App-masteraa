@@ -7,8 +7,11 @@ import { ProjectSetupSteps } from '@/components/ProjectSetupSteps';
 import { BuildLog } from '@/components/BuildLog';
 import { ActionButtons } from '@/components/ActionButtons';
 import { SuccessPanel } from '@/components/SuccessPanel';
+import { PhaseControls } from '@/components/PhaseControls';
+import { PhaseLog } from '@/components/PhaseLog';
 import KeystoreDialog, { KeystoreData } from '@/components/KeystoreDialog';
-import { Smartphone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Smartphone, Upload } from 'lucide-react';
 import { useConversion } from '@/hooks/useConversion';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useProjectSetup } from '@/hooks/useProjectSetup';
@@ -69,26 +72,29 @@ export default function Converter() {
 
   const handleStartConversion = async () => {
     try {
-      // Only need to upload - everything else is automatic
       if (selectedFile && validationResult?.isValid && !currentProject) {
-        console.log('Starting automatic upload and processing...');
+        console.log('Starting manual upload...');
         await uploadFile();
         return;
       }
     } catch (error) {
-      console.error('Conversion start error:', error);
+      console.error('Upload error:', error);
     }
   };
 
-  // Auto-upload after successful validation for full automation
-  useEffect(() => {
-    if (selectedFile && validationResult?.isValid && !currentProject && !fileUploading && !conversionUploading) {
-      console.log('🚀 Auto-uploading file after validation - starting full automation...');
-      setTimeout(() => {
-        uploadFile();
-      }, 1500);
-    }
-  }, [validationResult?.isValid, selectedFile, currentProject, fileUploading, conversionUploading]);
+  const handlePhaseStart = (phase: string) => {
+    console.log(`Starting ${phase} phase manually`);
+    // Force refresh to get latest project state
+    // React Query will automatically refetch
+  };
+
+  const handlePhaseStop = () => {
+    console.log('Stopping current phase');
+    // Force refresh to get latest project state
+  };
+
+  // Manual upload control - no auto-upload
+  // User must click the upload button after validation
 
   const handleKeystoreSubmit = (keystoreData: KeystoreData) => {
     if (currentProject) {
@@ -197,6 +203,26 @@ export default function Converter() {
             validationResult={validationResult}
             uploadError={uploadError}
           />
+          
+          {/* Manual Upload Button */}
+          {selectedFile && validationResult?.isValid && !currentProject && (
+            <div className="mt-4 flex justify-center">
+              <Button 
+                onClick={handleStartConversion}
+                disabled={fileUploading}
+                className="px-6 py-2"
+              >
+                {fileUploading ? (
+                  'Uploading...'
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Upload and Extract Project
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Processing Steps */}
@@ -219,12 +245,33 @@ export default function Converter() {
           </div>
         )}
 
+        {/* Manual Phase Controls */}
+        {currentProject && (
+          <div className="mb-8">
+            <PhaseControls
+              project={currentProject}
+              onPhaseStart={handlePhaseStart}
+              onPhaseStop={handlePhaseStop}
+            />
+          </div>
+        )}
+
         {/* Project Setup Steps */}
         {(currentProject?.status === 'setup' || currentProject?.status === 'setup-complete') && (
           <div className="mb-8">
             <ProjectSetupSteps 
               project={currentProject}
               setupResult={setupResult}
+            />
+          </div>
+        )}
+
+        {/* Phase-Specific Logs */}
+        {currentProject && logs.length > 0 && (
+          <div className="mb-8">
+            <PhaseLog
+              logs={logs}
+              project={currentProject}
             />
           </div>
         )}

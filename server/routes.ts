@@ -65,8 +65,8 @@ async function triggerAutomaticAnalysis(projectId: number): Promise<void> {
       message: `📊 Project contains ${analysis.projectStats.totalFiles} files, ${analysis.dependencies.length} dependencies`
     });
     
-    // Trigger project setup after analysis
-    await triggerAutomaticSetup(projectId);
+    // Manual phase control - no automatic setup triggering
+    console.log(`Analysis complete for project ${projectId}. Manual setup control enabled.`);
     
   } catch (error: any) {
     console.error('Automatic analysis failed:', error);
@@ -161,8 +161,8 @@ async function triggerAutomaticSetup(projectId: number): Promise<void> {
       message: "Project setup completed successfully! Starting APK generation..."
     });
 
-    // Immediately trigger APK build after setup
-    await triggerAutomaticBuild(projectId);
+    // Manual phase control - no automatic build triggering
+    console.log(`Setup complete for project ${projectId}. Manual build control enabled.`);
 
   } catch (error: any) {
     await storage.addBuildLog({
@@ -464,15 +464,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const updatedProject = await storage.getProject(project.id);
         
-        // Start the automated processing chain immediately after response
-        triggerAutomaticAnalysis(project.id).catch(error => {
-          console.error('Automatic analysis trigger failed:', error);
-        });
+        // Manual phase control - no automatic processing
+        console.log(`Project ${project.id} uploaded and extracted successfully. Manual phase control enabled.`);
         
         res.json({ 
           project: updatedProject,
-          message: "File uploaded and extracted successfully - automatic processing started",
-          nextStep: "automatic_analysis"
+          message: "File uploaded and extracted successfully - ready for manual analysis",
+          nextStep: "manual_analysis"
         });
         
       } catch (extractError: any) {
@@ -545,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Analyze project
+  // Manual Analysis - Start analysis phase
   app.post("/api/projects/:id/analyze", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
@@ -554,6 +552,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!project) {
         return res.status(404).json({ error: "Project not found" });
       }
+
+      // Deep file analysis before starting
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: "🔍 Deep file analysis starting - checking all files for errors...",
+      });
 
       // Update project status
       await storage.updateProject(projectId, {
@@ -564,7 +569,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.addBuildLog({
         projectId,
         level: "info",
-        message: "Starting project analysis...",
+        message: "📋 Manual analysis phase started - performing comprehensive project analysis...",
       });
 
       // Get project directory (files should already be extracted during upload)
@@ -833,8 +838,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Build APK
+  // Manual Setup - Start setup phase
+  app.post("/api/projects/:id/setup", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      if (!project.analysis) {
+        return res.status(400).json({ error: "Project must be analyzed first" });
+      }
+
+      // Start manual setup process
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: "🔧 Manual setup phase started - checking all dependencies and files...",
+      });
+
+      // Trigger setup process
+      await triggerAutomaticSetup(projectId);
+
+      res.json({ 
+        message: "Setup phase started successfully",
+        phase: "setup",
+        status: "started"
+      });
+    } catch (error: any) {
+      console.error("Setup start error:", error);
+      res.status(500).json({ error: "Failed to start setup phase" });
+    }
+  });
+
+  // Manual Build - Start build phase
   app.post("/api/projects/:id/build", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      if (!project.analysis) {
+        return res.status(400).json({ error: "Project must be analyzed first" });
+      }
+
+      // Start manual build process
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: "🚀 Manual build phase started - generating APK...",
+      });
+
+      // Trigger build process
+      await triggerAutomaticBuild(projectId);
+
+      res.json({ 
+        message: "Build phase started successfully",
+        phase: "build",
+        status: "started"
+      });
+    } catch (error: any) {
+      console.error("Build start error:", error);
+      res.status(500).json({ error: "Failed to start build phase" });
+    }
+  });
+
+  // Stop/Cancel phase
+  app.post("/api/projects/:id/stop", async (req, res) => {
+    try {
+      const projectId = parseInt(req.params.id);
+      const project = await storage.getProject(projectId);
+      
+      if (!project) {
+        return res.status(404).json({ error: "Project not found" });
+      }
+
+      // Stop current process
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: "⏹️ Process stopped by user",
+      });
+
+      await storage.updateProject(projectId, {
+        status: "stopped",
+      });
+
+      res.json({ 
+        message: "Process stopped successfully",
+        status: "stopped"
+      });
+    } catch (error: any) {
+      console.error("Stop error:", error);
+      res.status(500).json({ error: "Failed to stop process" });
+    }
+  });
+
+  // Legacy build endpoint (keeping for compatibility)
+  app.post("/api/projects/:id/build-legacy", async (req, res) => {
     try {
       const projectId = parseInt(req.params.id);
       const project = await storage.getProject(projectId);
