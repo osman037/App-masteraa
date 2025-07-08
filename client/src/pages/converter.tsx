@@ -69,21 +69,10 @@ export default function Converter() {
 
   const handleStartConversion = async () => {
     try {
-      // If we have a valid file but no project, upload it first
+      // Only need to upload - everything else is automatic
       if (selectedFile && validationResult?.isValid && !currentProject) {
         await uploadFile();
         return;
-      }
-      
-      // If we have a project but it's not analyzed, analyze it
-      if (currentProject && currentProject.status === 'extracted') {
-        await analyzeProject(currentProject.id);
-        return;
-      }
-      
-      // If analyzed, proceed to build
-      if (currentProject && currentProject.status === 'analyzed') {
-        setShowKeystoreDialog(true);
       }
     } catch (error) {
       console.error('Conversion start error:', error);
@@ -147,19 +136,8 @@ export default function Converter() {
     }
   };
 
-  // Auto-start setup after analysis
-  useEffect(() => {
-    if (currentProject?.status === 'analyzed') {
-      handleProjectSetup();
-    }
-  }, [currentProject?.status]);
-
-  // Auto-start build after setup completion
-  useEffect(() => {
-    if (currentProject?.status === 'setup-complete') {
-      buildApk(currentProject.id);
-    }
-  }, [currentProject?.status, buildApk]);
+  // All automation is now handled server-side
+  // Frontend only needs to monitor progress and display results
 
   const handleProjectSetup = async () => {
     if (!currentProject) return;
@@ -249,18 +227,20 @@ export default function Converter() {
           />
         </div>
 
-        {/* Action Buttons */}
-        <div className="mb-8">
-          <ActionButtons
-            project={currentProject}
-            onStart={handleStartConversion}
-            onPause={handlePause}
-            onStop={handleStop}
-            onDownload={handleDownload}
-            analyzing={analyzing}
-            building={building}
-          />
-        </div>
+        {/* Action Buttons - Only show download when ready */}
+        {currentProject?.status === 'completed' && (
+          <div className="mb-8">
+            <ActionButtons
+              project={currentProject}
+              onStart={handleStartConversion}
+              onPause={handlePause}
+              onStop={handleStop}
+              onDownload={handleDownload}
+              analyzing={analyzing}
+              building={building}
+            />
+          </div>
+        )}
 
         {/* Success Panel */}
         {currentProject?.status === 'completed' && (

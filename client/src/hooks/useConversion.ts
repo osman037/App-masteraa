@@ -21,16 +21,11 @@ export const useConversion = (projectId?: number) => {
       setCurrentProject(data.project);
       toast({
         title: 'Upload Successful',
-        description: 'Project extracted successfully. Starting automatic analysis...',
+        description: 'Project uploaded successfully. Automatic processing started...',
       });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       
-      // Auto-start analysis if project was extracted
-      if (data.project && data.project.status === 'extracted') {
-        setTimeout(() => {
-          analyzeMutation.mutate(data.project.id);
-        }, 1000);
-      }
+      // No manual triggers needed - server handles everything automatically
     },
     onError: (error: any) => {
       toast({
@@ -99,19 +94,35 @@ export const useConversion = (projectId?: number) => {
     },
   });
 
-  // Get project details
+  // Get project details with automatic refresh for real-time updates
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}`],
     enabled: !!projectId,
-    refetchInterval: false,
+    refetchInterval: (data) => {
+      // Continuously poll while processing
+      const status = data?.status;
+      if (status === 'extracted' || status === 'analyzing' || status === 'analyzed' || 
+          status === 'setup' || status === 'setup-complete' || status === 'building') {
+        return 2000; // Poll every 2 seconds during active processing
+      }
+      return false; // Stop polling when completed or errored
+    },
     refetchOnWindowFocus: false,
   });
 
-  // Get build logs
+  // Get build logs with automatic refresh for real-time updates
   const { data: logs, isLoading: logsLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}/logs`],
     enabled: !!projectId,
-    refetchInterval: false,
+    refetchInterval: () => {
+      // Continuously refresh logs during processing
+      if (project?.status === 'extracted' || project?.status === 'analyzing' || 
+          project?.status === 'analyzed' || project?.status === 'setup' || 
+          project?.status === 'setup-complete' || project?.status === 'building') {
+        return 3000; // Refresh logs every 3 seconds
+      }
+      return false;
+    },
     refetchOnWindowFocus: false,
   });
 

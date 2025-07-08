@@ -27,6 +27,185 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// Automatic project setup function
+async function triggerAutomaticSetup(projectId: number): Promise<void> {
+  try {
+    const project = await storage.getProject(projectId);
+    if (!project || !project.analysis) return;
+
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "Automatically starting comprehensive project setup..."
+    });
+
+    await storage.updateProject(projectId, {
+      status: "setup",
+      progress: 25,
+    });
+
+    const analysis = JSON.parse(project.analysis);
+    const projectDir = await fileManager.getProjectDirectory(projectId);
+    
+    // Step 1: Dependencies
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "STEP 1/4: Installing project dependencies..."
+    });
+    
+    const dependencyResult = await apkBuilder.installDependencies(projectDir, analysis);
+    for (const log of dependencyResult.logs) {
+      await storage.addBuildLog({ projectId, level: "info", message: log });
+    }
+    await storage.updateProject(projectId, { progress: 30 });
+
+    // Step 2: Missing Files
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "STEP 2/4: Creating missing files and directories..."
+    });
+    
+    const missingFilesResult = await apkBuilder.detectAndCreateMissingFiles(projectDir, analysis);
+    for (const log of missingFilesResult.logs) {
+      await storage.addBuildLog({ projectId, level: "info", message: log });
+    }
+    await storage.updateProject(projectId, { progress: 40 });
+
+    // Step 3: SDK Setup
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "STEP 3/4: Setting up required SDKs..."
+    });
+    
+    const sdkResult = await apkBuilder.setupSDKAndEnvironment(projectDir, analysis);
+    for (const log of sdkResult.logs) {
+      await storage.addBuildLog({ projectId, level: "info", message: log });
+    }
+    await storage.updateProject(projectId, { progress: 50 });
+
+    // Step 4: Build Tools
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "STEP 4/4: Installing build tools..."
+    });
+    
+    const buildToolsResult = await apkBuilder.installBuildTools(projectDir, analysis);
+    for (const log of buildToolsResult.logs) {
+      await storage.addBuildLog({ projectId, level: "info", message: log });
+    }
+    
+    await storage.updateProject(projectId, {
+      status: "setup-complete",
+      progress: 60,
+    });
+
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "Project setup completed successfully! Starting APK generation..."
+    });
+
+    // Automatically trigger APK build after setup
+    setTimeout(async () => {
+      await triggerAutomaticBuild(projectId);
+    }, 2000);
+
+  } catch (error: any) {
+    await storage.addBuildLog({
+      projectId,
+      level: "error",
+      message: `Automatic setup failed: ${error.message}`
+    });
+    await storage.updateProject(projectId, { status: "error" });
+  }
+}
+
+// Automatic APK build function
+async function triggerAutomaticBuild(projectId: number): Promise<void> {
+  try {
+    const project = await storage.getProject(projectId);
+    if (!project) return;
+
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "Automatically starting APK build process..."
+    });
+
+    await storage.updateProject(projectId, {
+      status: "building",
+      progress: 60,
+    });
+
+    const projectDir = await fileManager.getProjectDirectory(projectId);
+    const analysis = await projectAnalyzer.analyzeProject(projectDir);
+
+    // Build APK with automatic progress updates
+    const buildResult = await apkBuilder.buildApk(
+      projectDir,
+      analysis,
+      async (progress, message) => {
+        await storage.updateProject(projectId, { progress });
+        await storage.addBuildLog({
+          projectId,
+          level: "info",
+          message,
+        });
+      }
+    );
+
+    // Update project with build results
+    if (buildResult.success) {
+      await storage.updateProject(projectId, {
+        status: "completed",
+        progress: 100,
+        apkPath: buildResult.apkPath,
+        apkSize: buildResult.apkSize,
+      });
+      
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: "🎉 APK generation completed successfully! Ready for download."
+      });
+    } else {
+      await storage.updateProject(projectId, {
+        status: "error",
+        progress: 100,
+      });
+    }
+
+    // Add all build logs
+    for (const log of buildResult.logs) {
+      await storage.addBuildLog({
+        projectId,
+        level: "info",
+        message: log,
+      });
+    }
+
+    for (const error of buildResult.errors) {
+      await storage.addBuildLog({
+        projectId,
+        level: "error",
+        message: error,
+      });
+    }
+
+  } catch (error: any) {
+    await storage.addBuildLog({
+      projectId,
+      level: "error",
+      message: `Automatic build failed: ${error.message}`
+    });
+    await storage.updateProject(projectId, { status: "error" });
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
   // Validate uploaded file
@@ -235,10 +414,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const updatedProject = await storage.getProject(project.id);
         
+        // Automatically trigger analysis after successful extraction
+        setTimeout(async () => {
+          try {
+            await storage.addBuildLog({
+              projectId: project.id,
+              level: "info",
+              message: "Automatically starting project analysis..."
+            });
+            
+            // Trigger automatic analysis
+            const projectDir = await fileManager.getProjectDirectory(project.id);
+            const analysis = await projectAnalyzer.analyzeProject(projectDir);
+            
+            await storage.updateProject(project.id, {
+              status: "analyzed",
+              progress: 50,
+              analysis: JSON.stringify(analysis),
+            });
+            
+            await storage.addBuildLog({
+              projectId: project.id,
+              level: "info",
+              message: `Analysis complete. Framework detected: ${analysis.framework}`
+            });
+            
+            // Automatically trigger project setup after analysis
+            setTimeout(async () => {
+              await triggerAutomaticSetup(project.id);
+            }, 2000);
+            
+          } catch (error: any) {
+            await storage.addBuildLog({
+              projectId: project.id,
+              level: "error",
+              message: `Automatic analysis failed: ${error.message}`
+            });
+          }
+        }, 3000);
+        
         res.json({ 
           project: updatedProject,
-          message: "File uploaded and extracted successfully",
-          nextStep: "analysis"
+          message: "File uploaded and extracted successfully - automatic processing started",
+          nextStep: "automatic_analysis"
         });
         
       } catch (extractError: any) {
