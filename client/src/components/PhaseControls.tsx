@@ -46,11 +46,7 @@ export function PhaseControls({ project, onPhaseStart, onPhaseStop }: PhaseContr
     try {
       setActivePhase(phase.id);
       
-      const response = await apiRequest(phase.endpoint, {
-        method: 'POST',
-        body: JSON.stringify({}),
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const response = await apiRequest('POST', phase.endpoint, {});
 
       if (response.ok) {
         onPhaseStart(phase.id);
@@ -66,11 +62,7 @@ export function PhaseControls({ project, onPhaseStart, onPhaseStop }: PhaseContr
 
   const handleStopPhase = async () => {
     try {
-      const response = await apiRequest(`/api/projects/${project?.id}/stop`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-        headers: { 'Content-Type': 'application/json' }
-      });
+      const response = await apiRequest('POST', `/api/projects/${project?.id}/stop`, {});
 
       if (response.ok) {
         onPhaseStop();
