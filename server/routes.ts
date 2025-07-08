@@ -109,10 +109,8 @@ async function triggerAutomaticSetup(projectId: number): Promise<void> {
       message: "Project setup completed successfully! Starting APK generation..."
     });
 
-    // Automatically trigger APK build after setup
-    setTimeout(async () => {
-      await triggerAutomaticBuild(projectId);
-    }, 2000);
+    // Immediately trigger APK build after setup
+    await triggerAutomaticBuild(projectId);
 
   } catch (error: any) {
     await storage.addBuildLog({
@@ -414,13 +412,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const updatedProject = await storage.getProject(project.id);
         
-        // Automatically trigger analysis after successful extraction
-        setTimeout(async () => {
+        // Immediately start the automated processing chain
+        setImmediate(async () => {
           try {
             await storage.addBuildLog({
               projectId: project.id,
               level: "info",
-              message: "Automatically starting project analysis..."
+              message: "🚀 Starting automatic project analysis..."
+            });
+            
+            await storage.updateProject(project.id, {
+              status: "analyzing",
+              progress: 30,
             });
             
             // Trigger automatic analysis
@@ -429,29 +432,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             await storage.updateProject(project.id, {
               status: "analyzed",
-              progress: 50,
+              progress: 40,
               analysis: JSON.stringify(analysis),
             });
             
             await storage.addBuildLog({
               projectId: project.id,
               level: "info",
-              message: `Analysis complete. Framework detected: ${analysis.framework}`
+              message: `✅ Analysis complete. Framework detected: ${analysis.framework} (${analysis.language})`
             });
             
-            // Automatically trigger project setup after analysis
-            setTimeout(async () => {
-              await triggerAutomaticSetup(project.id);
-            }, 2000);
+            await storage.addBuildLog({
+              projectId: project.id,
+              level: "info",
+              message: `📊 Project contains ${analysis.projectStats.totalFiles} files, ${analysis.dependencies.length} dependencies`
+            });
+            
+            // Immediately trigger project setup after analysis
+            await triggerAutomaticSetup(project.id);
             
           } catch (error: any) {
             await storage.addBuildLog({
               projectId: project.id,
               level: "error",
-              message: `Automatic analysis failed: ${error.message}`
+              message: `❌ Automatic analysis failed: ${error.message}`
             });
+            await storage.updateProject(project.id, { status: "error" });
           }
-        }, 3000);
+        });
         
         res.json({ 
           project: updatedProject,

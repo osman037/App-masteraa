@@ -21,7 +21,7 @@ export const useConversion = (projectId?: number) => {
       setCurrentProject(data.project);
       toast({
         title: 'Upload Successful',
-        description: 'Project uploaded successfully. Automatic processing started...',
+        description: 'Project uploaded successfully. Full automation started - watch the build logs for real-time progress!',
       });
       queryClient.invalidateQueries({ queryKey: ['/api/projects'] });
       

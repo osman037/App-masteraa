@@ -40,7 +40,7 @@ export default function Converter() {
 
   const {
     selectedFile,
-    uploading,
+    uploading: fileUploading,
     validationResult,
     uploadError,
     uploadProgress,
@@ -71,6 +71,7 @@ export default function Converter() {
     try {
       // Only need to upload - everything else is automatic
       if (selectedFile && validationResult?.isValid && !currentProject) {
+        console.log('Starting automatic upload and processing...');
         await uploadFile();
         return;
       }
@@ -78,6 +79,16 @@ export default function Converter() {
       console.error('Conversion start error:', error);
     }
   };
+
+  // Auto-upload after successful validation for full automation
+  useEffect(() => {
+    if (selectedFile && validationResult?.isValid && !currentProject && !fileUploading && !conversionUploading) {
+      console.log('🚀 Auto-uploading file after validation - starting full automation...');
+      setTimeout(() => {
+        uploadFile();
+      }, 1500);
+    }
+  }, [validationResult?.isValid, selectedFile, currentProject, fileUploading, conversionUploading]);
 
   const handleKeystoreSubmit = (keystoreData: KeystoreData) => {
     if (currentProject) {
@@ -180,7 +191,7 @@ export default function Converter() {
         <div className="mb-8">
           <FileUpload
             onFileSelect={handleFileSelect}
-            uploading={uploading}
+            uploading={fileUploading}
             selectedFile={selectedFile}
             onFileRemove={handleFileRemove}
             validationResult={validationResult}
@@ -238,6 +249,7 @@ export default function Converter() {
               onDownload={handleDownload}
               analyzing={analyzing}
               building={building}
+              uploading={fileUploading}
             />
           </div>
         )}
