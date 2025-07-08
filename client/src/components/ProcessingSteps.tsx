@@ -28,7 +28,7 @@ export function ProcessingSteps({ project }: ProcessingStepsProps) {
       case 'build':
         if (project.status === 'building') return 'processing';
         if (project.status === 'completed') return 'completed';
-        if (project.status === 'error' && project.progress >= 65) return 'error';
+        if (project.status === 'error' && project.progress >= 60) return 'error';
         return 'pending';
       
       default:
@@ -53,14 +53,16 @@ export function ProcessingSteps({ project }: ProcessingStepsProps) {
         }
       }
     } else if (stepType === 'build') {
-      if (project.status === 'building') {
+      if (project.status === 'building' || project.status === 'completed') {
         switch (subStep) {
           case 'precheck':
-            return project.progress >= 70 ? 'completed' : (project.progress >= 65 ? 'processing' : 'pending');
-          case 'compilation':
-            return project.progress >= 85 ? 'completed' : (project.progress >= 70 ? 'processing' : 'pending');
+            return project.progress >= 75 ? 'completed' : (project.progress >= 70 ? 'processing' : 'pending');
+          case 'framework-build':
+            return project.progress >= 85 ? 'completed' : (project.progress >= 75 ? 'processing' : 'pending');
+          case 'packaging':
+            return project.progress >= 95 ? 'completed' : (project.progress >= 85 ? 'processing' : 'pending');
           case 'verification':
-            return project.progress >= 100 ? 'completed' : (project.progress >= 85 ? 'processing' : 'pending');
+            return project.progress >= 100 ? 'completed' : (project.progress >= 95 ? 'processing' : 'pending');
         }
       }
     }
@@ -116,9 +118,10 @@ export function ProcessingSteps({ project }: ProcessingStepsProps) {
       color: 'green',
       number: 3,
       substeps: [
-        { name: 'Pre-build Check', key: 'precheck' },
-        { name: 'APK Compilation', key: 'compile' },
-        { name: 'Final Verification', key: 'verify' },
+        { name: 'Pre-build Validation', key: 'precheck' },
+        { name: 'Framework Build', key: 'framework-build' },
+        { name: 'APK Packaging', key: 'packaging' },
+        { name: 'Final Verification', key: 'verification' },
       ],
     },
   ];
@@ -158,12 +161,15 @@ export function ProcessingSteps({ project }: ProcessingStepsProps) {
               </div>
               
               <div className="space-y-3">
-                {step.substeps.map((substep) => (
-                  <div key={substep.key} className="flex items-center justify-between">
-                    <span className="text-sm text-slate-600">{substep.name}</span>
-                    {getStatusBadge(status)}
-                  </div>
-                ))}
+                {step.substeps.map((substep) => {
+                  const substepStatus = getDetailedStepStatus(step.id, substep.key);
+                  return (
+                    <div key={substep.key} className="flex items-center justify-between">
+                      <span className="text-sm text-slate-600">{substep.name}</span>
+                      {getStatusBadge(substepStatus)}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
