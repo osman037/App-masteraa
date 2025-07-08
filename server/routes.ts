@@ -27,6 +27,58 @@ function formatFileSize(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// Automatic analysis function
+async function triggerAutomaticAnalysis(projectId: number): Promise<void> {
+  try {
+    console.log(`Starting automatic analysis for project ${projectId}`);
+    
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: "🚀 Starting automatic project analysis..."
+    });
+    
+    await storage.updateProject(projectId, {
+      status: "analyzing",
+      progress: 30,
+    });
+    
+    // Trigger automatic analysis
+    const projectDir = await fileManager.getProjectDirectory(projectId);
+    const analysis = await projectAnalyzer.analyzeProject(projectDir);
+    
+    await storage.updateProject(projectId, {
+      status: "analyzed",
+      progress: 40,
+      analysis: JSON.stringify(analysis),
+    });
+    
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: `✅ Analysis complete. Framework detected: ${analysis.framework} (${analysis.language})`
+    });
+    
+    await storage.addBuildLog({
+      projectId,
+      level: "info",
+      message: `📊 Project contains ${analysis.projectStats.totalFiles} files, ${analysis.dependencies.length} dependencies`
+    });
+    
+    // Trigger project setup after analysis
+    await triggerAutomaticSetup(projectId);
+    
+  } catch (error: any) {
+    console.error('Automatic analysis failed:', error);
+    await storage.addBuildLog({
+      projectId,
+      level: "error",
+      message: `❌ Automatic analysis failed: ${error.message}`
+    });
+    await storage.updateProject(projectId, { status: "error" });
+  }
+}
+
 // Automatic project setup function
 async function triggerAutomaticSetup(projectId: number): Promise<void> {
   try {
@@ -412,53 +464,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         const updatedProject = await storage.getProject(project.id);
         
-        // Immediately start the automated processing chain
-        setImmediate(async () => {
-          try {
-            await storage.addBuildLog({
-              projectId: project.id,
-              level: "info",
-              message: "🚀 Starting automatic project analysis..."
-            });
-            
-            await storage.updateProject(project.id, {
-              status: "analyzing",
-              progress: 30,
-            });
-            
-            // Trigger automatic analysis
-            const projectDir = await fileManager.getProjectDirectory(project.id);
-            const analysis = await projectAnalyzer.analyzeProject(projectDir);
-            
-            await storage.updateProject(project.id, {
-              status: "analyzed",
-              progress: 40,
-              analysis: JSON.stringify(analysis),
-            });
-            
-            await storage.addBuildLog({
-              projectId: project.id,
-              level: "info",
-              message: `✅ Analysis complete. Framework detected: ${analysis.framework} (${analysis.language})`
-            });
-            
-            await storage.addBuildLog({
-              projectId: project.id,
-              level: "info",
-              message: `📊 Project contains ${analysis.projectStats.totalFiles} files, ${analysis.dependencies.length} dependencies`
-            });
-            
-            // Immediately trigger project setup after analysis
-            await triggerAutomaticSetup(project.id);
-            
-          } catch (error: any) {
-            await storage.addBuildLog({
-              projectId: project.id,
-              level: "error",
-              message: `❌ Automatic analysis failed: ${error.message}`
-            });
-            await storage.updateProject(project.id, { status: "error" });
-          }
+        // Start the automated processing chain immediately after response
+        triggerAutomaticAnalysis(project.id).catch(error => {
+          console.error('Automatic analysis trigger failed:', error);
         });
         
         res.json({ 
